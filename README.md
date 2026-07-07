@@ -52,6 +52,22 @@ Paste a sample of your app's CLI or Streamlit output here so a reader can see wh
 #   08:00 — Morning walk (30 min) [priority: high]
 #   09:00 — Feeding (10 min) [priority: high]
 #   ...
+
+================================================
+  Today's Schedule for Jordan
+  (2 pets, 4 tasks)
+================================================
+Daily plan for 2026-07-07:
+  08:00 — Feeding (10 min) [high]
+      ↳ High priority (weight 3), 10 min — fits the available time.
+  08:10 — Morning walk (30 min) [high]
+      ↳ High priority (weight 3), 30 min — fits the available time.
+  08:40 — Litter cleanup (15 min) [medium]
+      ↳ Medium priority (weight 2), 15 min — fits the available time.
+  08:55 — Play/enrichment (20 min) [low]
+      ↳ Low priority (weight 1), 20 min — fits the available time.
+------------------------------------------------
+Scheduled 4 task(s) using 75 min; skipped 0.
 ```
 
 ## 🧪 Testing PawPal+
@@ -68,6 +84,15 @@ Sample test output:
 
 ```
 # Paste your pytest output here
+============================================================================================================= test session starts =============================================================================================================
+platform darwin -- Python 3.11.11, pytest-8.3.4, pluggy-1.5.0
+rootdir: /Users/nguyendo/Codepath/Pawpal/ai110-module2show-pawpal-starter
+plugins: anyio-4.6.2
+collected 2 items                                                                                                                                                                                                                             
+
+tests/test_pawpal.py ..                                                                                                                                                                                                                 [100%]
+
+============================================================================================================== 2 passed in 0.01s ==============================================================================================================
 ```
 
 ## 📐 Smarter Scheduling

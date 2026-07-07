@@ -33,17 +33,21 @@ classDiagram
         +time preferred_time
         +str recurring
         +str category
+        +bool completed
         +priority_weight() int
         +is_due_today() bool
+        +mark_complete() void
+        +reset() void
     }
 
     class Scheduler {
         +Owner owner
         +list~Task~ tasks
         +str strategy
-        +build_plan() DailyPlan
+        +candidate_tasks() list~Task~
         +sort_tasks() list~Task~
         +fits_in_budget(task, remaining) bool
+        +build_plan(plan_date) DailyPlan
         +resolve_conflicts() void
         +explain(task) str
     }
@@ -53,7 +57,7 @@ classDiagram
         +list~PlanEntry~ entries
         +list~Task~ skipped_tasks
         +int total_minutes
-        +add_entry(task, start_time) void
+        +add_entry(task, start_time, reason) PlanEntry
         +to_display() str
         +summary() str
     }
