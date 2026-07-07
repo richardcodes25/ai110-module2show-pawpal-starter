@@ -1,8 +1,6 @@
 """Basic tests for the PawPal+ logic layer (pawpal_system.py)."""
 
-from datetime import date, timedelta
-
-from datetime import time
+from datetime import date, time, timedelta
 
 from pawpal_system import Owner, Pet, Scheduler, Task
 
@@ -104,3 +102,109 @@ def test_task_overlaps_interval_boundaries():
     assert walk.overlaps(feed) is False
     assert walk.overlaps(meds) is True
     assert walk.overlaps(anytime) is False  # untimed tasks never conflict
+
+
+# --- Sorting correctness -------------------------------------------------
+
+def test_sort_by_time_returns_chronological_order():
+    """sort_by_time() should return tasks ordered by preferred_time, regardless of insert order."""
+    owner = Owner(name="Jordan")
+    pet = Pet(name="Mochi", species="dog")
+    # Add deliberately OUT of order.
+    owner.add_task(pet, Task("Evening play", 20, preferred_time=time(17, 0)))
+    owner.add_task(pet, Task("Morning walk", 30, preferred_time=time(8, 0)))
+    owner.add_task(pet, Task("Midday feed", 10, preferred_time=time(12, 0)))
+
+    ordered = Scheduler(owner).sort_by_time()
+    times = [t.preferred_time for t in ordered]
+
+    assert times == [time(8, 0), time(12, 0), time(17, 0)]
+
+
+def test_sort_by_time_places_untimed_tasks_last():
+    """Tasks without a preferred_time should sort to the end, not crash on None comparison."""
+    owner = Owner(name="Jordan")
+    pet = Pet(name="Mochi", species="dog")
+    owner.add_task(pet, Task("Anytime brushing", 10))  # no preferred_time
+    owner.add_task(pet, Task("Morning walk", 30, preferred_time=time(8, 0)))
+
+    ordered = Scheduler(owner).sort_by_time()
+
+    assert ordered[0].title == "Morning walk"      # timed task first
+    assert ordered[-1].preferred_time is None       # untimed sinks to the end
+
+
+# --- Filtering -----------------------------------------------------------
+
+def test_filter_tasks_by_pet_and_status():
+    """filter_tasks() should narrow by pet name (case-insensitive) and completion status."""
+    owner = Owner(name="Jordan")
+    mochi = Pet(name="Mochi", species="dog")
+    luna = Pet(name="Luna", species="cat")
+    walk = Task("Walk", 30)
+    owner.add_task(mochi, walk)
+    owner.add_task(luna, Task("Litter", 15))
+    walk.mark_complete()
+
+    assert [t.title for t in owner.filter_tasks(pet_name="luna")] == ["Litter"]  # case-insensitive
+    assert [t.title for t in owner.filter_tasks(completed=True)] == ["Walk"]
+    assert [t.title for t in owner.filter_tasks(completed=False)] == ["Litter"]
+
+
+def test_filter_tasks_empty_pet_returns_empty_list():
+    """A pet with no tasks (or an unknown pet name) should return an empty list, not error."""
+    owner = Owner(name="Jordan")
+    owner.add_pet(Pet(name="Mochi", species="dog"))  # no tasks added
+
+    assert owner.filter_tasks(pet_name="Mochi") == []
+    assert owner.filter_tasks(pet_name="Nonexistent") == []
+
+
+# --- Plan building -------------------------------------------------------
+
+def test_build_plan_skips_task_larger_than_budget():
+    """A task longer than the available window should be skipped, not crash the plan."""
+    owner = Owner(name="Jordan")
+    owner.set_availability(time(8, 0), time(8, 30))  # only 30 minutes
+    pet = Pet(name="Mochi", species="dog")
+    owner.add_task(pet, Task("Quick feed", 10))
+    owner.add_task(pet, Task("Long grooming", 90))  # can't fit in 30 min
+
+    plan = Scheduler(owner).build_plan()
+
+    scheduled = [e.task.title for e in plan.entries]
+    skipped = [t.title for t in plan.skipped_tasks]
+    assert "Quick feed" in scheduled
+    assert "Long grooming" in skipped
+
+
+def test_build_plan_empty_when_no_tasks():
+    """With no pets/tasks, build_plan() should return an empty plan and not raise."""
+    owner = Owner(name="Jordan")
+
+    plan = Scheduler(owner).build_plan()
+
+    assert plan.entries == []
+    assert "(no tasks scheduled)" in plan.to_display()
+
+
+# --- Recurrence edge cases -----------------------------------------------
+
+def test_daily_task_rolls_over_month_boundary():
+    """timedelta math should roll a Jan 31 daily task to Feb 1, not an invalid Jan 32."""
+    pet = Pet(name="Mochi", species="dog")
+    task = Task("Meds", 5, recurring="daily", due_date=date(2026, 1, 31))
+    pet.add_task(task)
+
+    follow_up = pet.complete_task(task)
+
+    assert follow_up.due_date == date(2026, 2, 1)
+
+
+def test_future_dated_task_is_not_due_today():
+    """A regenerated occurrence dated in the future must not count as due today."""
+    today = date(2026, 7, 7)
+    tomorrow = Task("Walk", 30, recurring="daily", due_date=today + timedelta(days=1))
+
+    assert tomorrow.is_due_today(on_date=today) is False
+    assert tomorrow.is_due_today(on_date=today + timedelta(days=1)) is True

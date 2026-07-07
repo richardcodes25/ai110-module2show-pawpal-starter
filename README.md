@@ -72,28 +72,38 @@ Scheduled 4 task(s) using 75 min; skipped 0.
 
 ## 🧪 Testing PawPal+
 
+Run the full test suite from the project root:
+
 ```bash
-# Run the full test suite:
-pytest
-
-# Run with coverage:
-pytest --cov
+python -m pytest
 ```
 
-Sample test output:
+**What the tests cover** (`tests/test_pawpal.py`, 16 tests):
 
-```
-# Paste your pytest output here
-============================================================================================================= test session starts =============================================================================================================
+- **Sorting** — `sort_by_time()` returns tasks in chronological order, and untimed tasks sort to the end without crashing on a `None` comparison.
+- **Filtering** — `Owner.filter_tasks()` narrows by pet name (case-insensitive) and completion status; a pet with no tasks or an unknown name returns `[]`.
+- **Recurrence** — completing a daily task spawns tomorrow's copy, weekly spawns +7 days, one-off tasks don't recur, `timedelta` rolls over month boundaries (Jan 31 → Feb 1), and future-dated occurrences aren't due today.
+- **Conflict detection** — `detect_conflicts()` flags overlapping/same-time tasks and stays quiet for back-to-back ones; `Task.overlaps()` respects half-open interval boundaries.
+- **Plan building** — `build_plan()` skips a task larger than the time budget and returns an empty plan (no crash) when there are no tasks.
+- **Core model** — marking a task complete flips its status, and adding a task grows the pet's task list.
+
+Successful run:
+
+```text
+==================================================================================== test session starts =====================================================================================
 platform darwin -- Python 3.11.11, pytest-8.3.4, pluggy-1.5.0
 rootdir: /Users/nguyendo/Codepath/Pawpal/ai110-module2show-pawpal-starter
 plugins: anyio-4.6.2
-collected 2 items                                                                                                                                                                                                                             
+collected 16 items
 
-tests/test_pawpal.py ..                                                                                                                                                                                                                 [100%]
+tests/test_pawpal.py ................                                                                                                                                                  [100%]
 
-============================================================================================================== 2 passed in 0.01s ==============================================================================================================
+===================================================================================== 16 passed in 0.02s =====================================================================================
 ```
+
+### Confidence Level: ★★★★☆ (4 / 5)
+
+All 16 tests pass and cover every scheduling feature — sorting, filtering, recurrence, conflict detection, and plan building — across both happy paths and edge cases (empty pets, oversized tasks, month rollover, untimed tasks). I hold back the fifth star because the tests exercise the logic layer directly rather than the Streamlit UI, and a few behaviors remain untested: the priority-first `build_plan` ordering and tie-breaking, weekly `is_due_today` weekday semantics, and preferred-time placement (which is currently advisory only).
 
 ## 📐 Smarter Scheduling
 
