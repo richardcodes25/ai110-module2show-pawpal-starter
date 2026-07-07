@@ -9,7 +9,8 @@ classDiagram
         +time available_until
         +dict preferences
         +add_pet(pet) void
-        +add_task(task) void
+        +add_task(pet, task) void
+        +all_tasks() list~Task~
         +set_availability(start, end) void
         +time_budget() int
     }

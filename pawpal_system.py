@@ -98,8 +98,12 @@ class Owner:
         """Register a pet under this owner."""
         raise NotImplementedError
 
-    def add_task(self, task: Task) -> None:
-        """Convenience helper to add a task (routed to the relevant pet)."""
+    def add_task(self, pet: Pet, task: Task) -> None:
+        """Add a task to one of this owner's pets (explicit pet avoids ambiguity)."""
+        raise NotImplementedError
+
+    def all_tasks(self) -> list[Task]:
+        """Return every task across all of this owner's pets (single source of truth)."""
         raise NotImplementedError
 
     def set_availability(self, start: time, end: time) -> None:
@@ -118,9 +122,13 @@ class Scheduler:
     than being a simple data record.
     """
 
-    def __init__(self, owner: Owner, tasks: list[Task], strategy: str = "priority-first") -> None:
+    def __init__(
+        self, owner: Owner, tasks: list[Task] | None = None, strategy: str = "priority-first"
+    ) -> None:
         self.owner = owner
-        self.tasks = tasks
+        # Single source of truth: default to the tasks already attached to the
+        # owner's pets. An explicit list can still be passed to override/filter.
+        self.tasks = tasks if tasks is not None else owner.all_tasks()
         self.strategy = strategy
 
     def build_plan(self) -> DailyPlan:
