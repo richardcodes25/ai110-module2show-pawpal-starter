@@ -72,15 +72,76 @@ irrelevant — so I optimized for readability over asymptotic cleverness on purp
 
 ## 3. AI Collaboration
 
-**a. How you used AI**
+**a. How you used AI / most effective features**
 
-- How did you use AI tools during this project (for example: design brainstorming, debugging, refactoring)?
-- What kinds of prompts or questions were most helpful?
+I used the AI assistant differently in each phase: **design brainstorming** while drafting
+the UML, **skeleton generation** to turn the diagram into class stubs, **incremental
+implementation and refactoring** while filling in the scheduling logic, and **debugging +
+test scaffolding** once behavior existed to verify.
 
-**b. Judgment and verification**
+The single most effective feature was **attaching a file and asking a targeted question
+about it** rather than asking in the abstract. Two examples paid off repeatedly:
 
-- Describe one moment where you did not accept an AI suggestion as-is.
-- How did you evaluate or verify what the AI suggested?
+- Attaching the class skeleton and asking *"review this for missing relationships and logic
+  bottlenecks"* surfaced the two structural fixes in Section 1b (unambiguous task ownership
+  and the duplicate task list) before I had written any logic against the flawed shape.
+- Attaching the finished `pawpal_system.py` and asking *"what updates should I make to my
+  initial UML to accurately show how these classes interact?"* caught real drift — a method
+  I had renamed (`resolve_conflicts` → `detect_conflicts`), new methods (`sort_by_time`,
+  `filter_tasks`, `next_occurrence`), and a new relationship (a `Task` recurring into
+  another `Task`).
+
+Prompts that named a **concrete artifact and a concrete goal** ("does this diagram match
+this code?") were far more useful than open-ended ones ("make my scheduler better"), because
+the answers were verifiable against the file in front of me.
+
+**b. Judgment and verification — a suggestion I modified**
+
+The clearest example was **conflict handling**. My initial design (and an easy AI default)
+was a `Scheduler.resolve_conflicts()` method that would *automatically reshuffle* overlapping
+tasks to fix collisions. I rejected the auto-resolve behavior and modified it into
+`detect_conflicts()`, which only *reports* overlaps as warning strings and leaves placement
+alone (see the tradeoff in Section 2b). Auto-reshuffling would have silently buried a
+high-priority feeding behind low-priority enrichment, or moved medication to a worse time
+without the owner's consent — and it would have tangled the placement logic with the
+conflict logic. Keeping detection separate from placement kept both simple and kept the
+human in control.
+
+A second modification: the AI-suggested `Scheduler` carried its own `tasks` list. I made
+that argument optional and routed everything through `Owner.all_tasks()` so there was a
+**single source of truth**, preventing the scheduler's copy from drifting out of sync with
+the tasks stored on each pet.
+
+I verified suggestions three ways: reading the code against the invariants I cared about
+(one source of truth, no silent data changes), running `python main.py` to watch the actual
+behavior end to end, and writing the 16-test suite so regressions in sorting, filtering,
+recurrence, and conflict detection would fail loudly.
+
+**c. Working in separate chat sessions per phase**
+
+I kept a separate chat session for each phase — design/UML, skeleton, logic + tests, and
+packaging. This helped in three concrete ways:
+
+- **Focused context.** Each session only held what mattered for that phase, so the
+  assistant wasn't reasoning over a stale early draft when I was deep in implementation.
+- **The file, not the chat, was the source of truth.** Because I re-attached the *current*
+  `pawpal_system.py` at the start of a new phase instead of relying on the AI's memory of
+  earlier messages, its answers reflected what the code actually said — which is exactly how
+  I caught the UML drift.
+- **Clean checkpoints.** Ending a phase in its own session gave me a natural place to commit
+  and to write down what changed, so the git history and the reflection track the phases.
+
+**d. What I learned about being the "lead architect"**
+
+The AI was fastest at producing *plausible* code, but plausible is not the same as coherent
+with the rest of the system. My job as lead architect was to own the parts the AI couldn't
+see: the **invariants** (single source of truth for tasks), the **boundaries** (detection
+separate from placement; logic in `pawpal_system.py`, never in the UI), and the
+**tradeoffs** (warn-don't-resolve, O(n²) for readability at this scale). The most valuable
+thing I did was not writing code — it was *setting constraints and rejecting the suggestions
+that violated them*. The AI accelerated the work enormously, but every accepted suggestion
+was one I could explain and had verified against a test or a real run. Powerful tools raise
+the bar on judgment rather than removing the need for it.
 
 ---
 

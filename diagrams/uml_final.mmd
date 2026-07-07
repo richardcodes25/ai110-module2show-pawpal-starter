@@ -1,0 +1,90 @@
+classDiagram
+    %% PawPal+ class diagram — FINAL, matches pawpal_system.py after Phase 3.
+    %% Pet care planning assistant: Owner -> Pets -> Tasks, planned by a Scheduler
+    %% into a DailyPlan of time-stamped PlanEntry rows.
+
+    class Owner {
+        +str name
+        +int available_minutes
+        +time available_from
+        +time available_until
+        +dict preferences
+        +list~Pet~ pets
+        +add_pet(pet) void
+        +add_task(pet, task) void
+        +mark_task_complete(pet, task) Task
+        +all_tasks() list~Task~
+        +filter_tasks(pet_name, completed) list~Task~
+        +set_availability(start, end) void
+        +time_budget() int
+    }
+
+    class Pet {
+        +str name
+        +str species
+        +int age
+        +str notes
+        +list~Task~ tasks
+        +add_task(task) void
+        +remove_task(task) void
+        +list_tasks() list~Task~
+        +complete_task(task) Task
+    }
+
+    class Task {
+        +str title
+        +int duration_minutes
+        +str priority
+        +time preferred_time
+        +str recurring
+        +str category
+        +bool completed
+        +date due_date
+        +priority_weight() int
+        +is_due_today(on_date) bool
+        +overlaps(other) bool
+        +next_occurrence(from_date) Task
+        +mark_complete() void
+        +reset() void
+    }
+
+    class Scheduler {
+        +Owner owner
+        +list~Task~ tasks
+        +str strategy
+        +candidate_tasks() list~Task~
+        +sort_tasks() list~Task~
+        +sort_by_time() list~Task~
+        +fits_in_budget(task, remaining) bool
+        +build_plan(plan_date) DailyPlan
+        +detect_conflicts() list~str~
+        +explain(task) str
+    }
+
+    class DailyPlan {
+        +date plan_date
+        +list~PlanEntry~ entries
+        +list~Task~ skipped_tasks
+        +list~str~ warnings
+        +int total_minutes
+        +add_entry(task, start_time, reason) PlanEntry
+        +to_display() str
+        +summary() str
+    }
+
+    class PlanEntry {
+        +Task task
+        +time start_time
+        +time end_time
+        +str reason
+    }
+
+    Owner "1" --> "*" Pet : owns
+    Pet "1" --> "*" Task : has
+    Pet ..> Task : spawns next occurrence
+    Task ..> Task : recurs into
+    Scheduler --> Owner : reads constraints
+    Scheduler --> Task : selects from
+    Scheduler ..> DailyPlan : produces
+    DailyPlan "1" *-- "*" PlanEntry : contains
+    PlanEntry --> Task : schedules

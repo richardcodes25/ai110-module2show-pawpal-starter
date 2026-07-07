@@ -1,3 +1,5 @@
+from datetime import time
+
 import streamlit as st
 
 # Bridge to the logic layer: bring the backend classes into the UI.
@@ -93,6 +95,16 @@ else:
         with col3:
             recurring = st.selectbox("Frequency", ["none", "daily", "weekly"])
 
+        # Preferred start time is optional. Inside an st.form, widgets don't rerun
+        # the script until submit, so we can't conditionally reveal the time picker.
+        # Instead we always show both and only read the time if the box is checked —
+        # a None preferred_time means "any time" and never triggers a conflict.
+        time_col, pick_col = st.columns([1, 2])
+        with time_col:
+            has_time = st.checkbox("Set a start time", value=False)
+        with pick_col:
+            preferred = st.time_input("Preferred start", value=time(8, 0), step=900)
+
         if st.form_submit_button("Add task"):
             # Look up the chosen Pet object, then route the new Task through
             # Owner.add_task(pet, task) — the single entry point from Phase 2.
@@ -104,26 +116,45 @@ else:
                     duration_minutes=int(duration),
                     priority=priority,
                     recurring=recurring,
+                    preferred_time=preferred if has_time else None,
                 ),
             )
             st.success(f"Added '{task_title}' for {target_pet_name}.")
 
-# Show the live task list straight from the objects (owner -> pets -> tasks).
-all_tasks = owner.all_tasks()
-if all_tasks:
+# Show the live task list. Filtering is delegated to Owner.filter_tasks() so the
+# UI stays a thin view over the logic layer rather than re-implementing the query.
+if owner.all_tasks():
     st.write("Current tasks:")
-    st.table(
-        [
-            {
-                "title": t.title,
-                "duration_minutes": t.duration_minutes,
-                "priority": t.priority,
-                "frequency": t.recurring,
-                "done": t.completed,
-            }
-            for t in all_tasks
-        ]
+    fcol1, fcol2 = st.columns(2)
+    with fcol1:
+        pet_filter = st.selectbox("Filter by pet", ["All"] + [p.name for p in owner.pets])
+    with fcol2:
+        status_filter = st.selectbox("Filter by status", ["All", "Pending", "Done"])
+
+    # Translate the UI choices into Owner.filter_tasks() keyword arguments; None on a
+    # dimension means "don't filter on it" (matches the method's contract).
+    status_map = {"All": None, "Pending": False, "Done": True}
+    shown_tasks = owner.filter_tasks(
+        pet_name=None if pet_filter == "All" else pet_filter,
+        completed=status_map[status_filter],
     )
+
+    if shown_tasks:
+        st.table(
+            [
+                {
+                    "title": t.title,
+                    "duration (min)": t.duration_minutes,
+                    "priority": t.priority,
+                    "preferred time": f"{t.preferred_time:%H:%M}" if t.preferred_time else "any",
+                    "frequency": t.recurring,
+                    "done": "✅" if t.completed else "—",
+                }
+                for t in shown_tasks
+            ]
+        )
+    else:
+        st.info("No tasks match the current filters.")
 else:
     st.info("No tasks yet. Add one above.")
 
@@ -135,18 +166,59 @@ minutes = st.slider("Minutes available today", min_value=30, max_value=720, valu
 
 if st.button("Generate schedule"):
     owner.available_minutes = minutes
-    plan = Scheduler(owner).build_plan()  # gathers tasks via owner.all_tasks()
+    scheduler = Scheduler(owner)  # gathers tasks via owner.all_tasks()
+    plan = scheduler.build_plan()
 
+    # --- Conflict warnings come FIRST -----------------------------------
+    # A time conflict is advisory, not fatal: the owner may knowingly double-book
+    # (e.g. feed two pets at once), so we still render the full schedule below.
+    # We surface each warning as its own amber st.warning box — placed above the
+    # plan so the owner reads the caution before the schedule it affects. The
+    # message text (which tasks, which times, which pets) comes straight from
+    # Scheduler.detect_conflicts() via plan.warnings.
+    if plan.warnings:
+        st.warning(f"⚠️ Found {len(plan.warnings)} time conflict(s) — review before your day:")
+        for warning in plan.warnings:
+            st.warning(warning)
+
+    # --- The schedule itself, as a professional table -------------------
     if plan.entries:
         st.markdown("**Today's Schedule**")
-        for entry in plan.entries:
-            st.markdown(f"- **{entry.start_time:%H:%M}** — {entry.task.title} "
-                        f"({entry.task.duration_minutes} min, {entry.task.priority})")
-            st.caption(f"↳ {entry.reason}")
+        st.table(
+            [
+                {
+                    "⏰ time": f"{e.start_time:%H:%M}–{e.end_time:%H:%M}",
+                    "task": e.task.title,
+                    "duration": f"{e.task.duration_minutes} min",
+                    "priority": e.task.priority,
+                    "why chosen": e.reason,
+                }
+                for e in plan.entries
+            ]
+        )
+        st.success(plan.summary())
     else:
         st.warning("No tasks could be scheduled. Add tasks or increase available time.")
 
     if plan.skipped_tasks:
         st.caption("Skipped (didn't fit): " + ", ".join(t.title for t in plan.skipped_tasks))
 
-    st.info(plan.summary())
+    # --- Explain the ordering -------------------------------------------
+    # Expose both Scheduler ordering strategies so the owner can see *why* the plan
+    # is ordered the way it is (priority-first) and preview an alternative (by time).
+    with st.expander("How were these tasks ordered?"):
+        st.caption("Priority-first (the strategy used above): highest priority, then shortest task.")
+        st.markdown(
+            "\n".join(f"1. **{t.title}** — {t.priority}, {t.duration_minutes} min"
+                      for t in scheduler.sort_tasks())
+            or "_No candidate tasks today._"
+        )
+        st.caption("Alternative — chronological by preferred start time:")
+        st.markdown(
+            "\n".join(
+                f"1. **{t.title}** — {t.preferred_time:%H:%M}" if t.preferred_time
+                else f"1. **{t.title}** — any time"
+                for t in scheduler.sort_by_time()
+            )
+            or "_No candidate tasks today._"
+        )
