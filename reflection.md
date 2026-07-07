@@ -44,8 +44,29 @@ After building the skeleton I asked my AI assistant to review it for missing rel
 
 **b. Tradeoffs**
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+The clearest tradeoff my scheduler makes: it **detects time conflicts but does not
+auto-resolve them.** `detect_conflicts()` compares every pair of timed tasks with a
+half-open interval overlap test — `[start, start + duration)` — so it catches genuine
+overlaps (a 09:00 nail trim colliding with a 09:00 litter cleanup), not just exact
+start-time matches. But when `build_plan()` lays out the day, it still packs tasks
+back-to-back in *priority* order and ignores each task's `preferred_time`. A detected
+collision therefore becomes a **warning attached to the plan**, not an automatic
+reshuffle — and the printed schedule and the preferred times can visibly disagree (the
+plan may show the nail trim at 08:15 while warning that it wanted 09:00).
+
+Why this is reasonable for the scenario: the user is a human owner who ultimately
+controls their own day. Silently moving a task to honor a preferred time could bury a
+high-priority feeding behind low-priority enrichment, or shift medication to a worse
+time without the owner's consent. Surfacing "these two both want 09:00" and letting the
+owner adjust keeps the tool trustworthy and keeps the placement logic simple and
+predictable. For a single owner with a handful of pets that is an acceptable price; a
+future iteration could seat timed tasks at their preferred slots first and fall back to
+greedy packing only for the untimed ones.
+
+A smaller, related tradeoff: `detect_conflicts()` uses O(n²) pairwise comparison rather
+than a sorted O(n log n) sweep-line. At pet-care scale (a few pets, a dozen tasks) the
+pairwise version is faster to read and verify, and the performance difference is
+irrelevant — so I optimized for readability over asymptotic cleverness on purpose.
 
 ---
 

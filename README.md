@@ -97,14 +97,27 @@ tests/test_pawpal.py ..                                                         
 
 ## 📐 Smarter Scheduling
 
-> Fill in once you've implemented scheduling logic.
+PawPal+ goes beyond a flat to-do list with four pieces of scheduling logic. Each row
+names the exact method that implements it (all in `pawpal_system.py`).
 
-| Feature | Method(s) | Notes |
-|---------|-----------|-------|
-| Task sorting | | e.g., by priority, duration |
-| Filtering | | e.g., skip tasks if time runs out |
-| Conflict handling | | e.g., overlapping time slots |
-| Recurring tasks | | e.g., daily vs. weekly |
+| Feature | Method(s) | What it does |
+| --- | --- | --- |
+| **Sorting by time** | `Scheduler.sort_by_time()` | Orders candidate tasks chronologically by `preferred_time` using `sorted()` with a `(has_no_time, time)` lambda key — untimed tasks sink to the end, everything else is in clock order. (`Scheduler.sort_tasks()` still offers the priority-first ordering used by `build_plan()`.) |
+| **Filtering** | `Owner.filter_tasks(pet_name=..., completed=...)` | Narrows tasks by pet name (case-insensitive) and/or completion status; each filter is optional (`None` = don't filter on that dimension). `Scheduler.candidate_tasks()` applies the scheduling filter — due today and not yet completed. |
+| **Conflict detection** | `Scheduler.detect_conflicts()` + `Task.overlaps()` | Compares every pair of timed tasks with a half-open interval test (`[start, start+duration)`) and returns human-readable **warning strings** — never raises. Catches real overlaps (not just exact start-time matches), across the same pet or different pets. Warnings are attached to `DailyPlan.warnings`. |
+| **Recurring tasks** | `Task.next_occurrence()`, `Pet.complete_task()`, `Owner.mark_task_complete()`, `Task.is_due_today()` | Completing a `daily`/`weekly` task auto-spawns a fresh, uncompleted occurrence with `due_date` advanced by `timedelta` (daily → +1 day, weekly → +7 days). `is_due_today()` then holds future occurrences back until their date arrives. One-off (`none`) tasks don't recur. |
+
+### Sample conflict warning
+
+```text
+⚠ Time conflict (Mochi vs Luna): 'Nail trim' at 09:00 overlaps 'Litter cleanup' at 09:00
+```
+
+### Trying it in the terminal
+
+`python main.py` exercises all four features end to end: it adds tasks out of order (to
+show sorting), filters by pet and status, completes a daily task (to show regeneration),
+and adds a colliding task (to show conflict detection) before printing the day's plan.
 
 ## 📸 Demo Walkthrough
 
